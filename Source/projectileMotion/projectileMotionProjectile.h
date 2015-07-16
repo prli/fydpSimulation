@@ -30,5 +30,7 @@ public:
 
 	/** inits velocity of the projectile in the shoot direction */
 	void InitVelocity(const FVector& ShootDirection);
+
+	virtual void Tick(float DeltaSeconds) OVERRIDE;
 };
 

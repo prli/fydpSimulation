@@ -31,6 +31,8 @@ AprojectileMotionProjectile::AprojectileMotionProjectile()
 	ProjectileMovement->bRotationFollowsVelocity = true;
 	ProjectileMovement->bShouldBounce = true;
 
+	PrimaryActorTick.bCanEverTick = true;
+
 	// Die after 3 seconds by default
 	InitialLifeSpan = 3.0f;
 }
@@ -73,6 +75,16 @@ void AprojectileMotionProjectile::InitVelocity(const FVector& ShootDirection)
 
 		ProjectileMovement->InitialSpeed = Ax;
 		// set the projectile's velocity to the desired direction
-		ProjectileMovement->Velocity = -ShootDirection * ProjectileMovement->InitialSpeed;
+		ProjectileMovement->Velocity = ShootDirection * ProjectileMovement->InitialSpeed;
 	}
+}
+
+void AprojectileMotionProjectile::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	FColor LineColor = FColor::Green;
+	DrawDebugLine(GetWorld(), GetActorLocation(), GetActorLocation() + GetVelocity() * DeltaSeconds, LineColor, false, 2.f, 0, 1.f);
+
+	SetActorLocation(GetActorLocation() + GetVelocity() * DeltaSeconds, true);
 }
