@@ -26,7 +26,6 @@ AprojectileMotionProjectile::AprojectileMotionProjectile()
 	// Use a ProjectileMovementComponent to govern this projectile's movement
 	ProjectileMovement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("ProjectileComp"));
 	ProjectileMovement->UpdatedComponent = CollisionComp;
-	//ProjectileMovement->InitialSpeed = 3000.f;
 	ProjectileMovement->MaxSpeed = 10000.f;
 	ProjectileMovement->bRotationFollowsVelocity = true;
 	ProjectileMovement->bShouldBounce = true;
@@ -48,32 +47,39 @@ void AprojectileMotionProjectile::OnHit(AActor* OtherActor, UPrimitiveComponent*
 	}
 }
 
-void AprojectileMotionProjectile::InitVelocity(const FVector& ShootDirection)
+float InitSpeed()
+{
+	//std::ifstream infile;
+	//TArray<FString> StringArrat;
+	//FString projectDir = FPaths::GameDir();
+	//projectDir += "Data/test.txt";
+	//if (!FPlatformFileManager::Get().GetPlatformFile().FileExists(*projectDir))
+	//{
+	//	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("** Could not Find File **"));
+	//	return 0;
+	//}
+	//FFileHelper::LoadANSITextFileToStrings(*(projectDir), NULL, StringArrat);
+	//float Ax = 0;
+	////float Gx, Gy, Gz = 0.f;
+	//for (int i = 0; i < StringArrat.Num(); i++)
+	//{
+	//	FString str = StringArrat[i];
+	//	TArray<FString> parsed;
+	//	int count = str.ParseIntoArray(parsed, TEXT(","), false);
+	//	if (count > 1)
+	//		Ax = FCString::Atof(*parsed[0]);
+	//}
+	//return Ax;
+
+	return 0;
+	
+}
+
+void AprojectileMotionProjectile::InitVelocity(const FVector& ShootDirection, const float speed)
 {
 	if (ProjectileMovement)
 	{
-		std::ifstream infile;
-		TArray<FString> StringArrat;
-		FString projectDir = FPaths::GameDir();
-		projectDir += "Data/test.txt";
-		if (!FPlatformFileManager::Get().GetPlatformFile().FileExists(*projectDir))
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("** Could not Find File **"));
-			return;
-		}
-		FFileHelper::LoadANSITextFileToStrings(*(projectDir), NULL, StringArrat);
-		float Ax = 0;
-		//float Gx, Gy, Gz = 0.f;
-		for (int i = 0; i < StringArrat.Num(); i++)
-		{
-			FString str = StringArrat[i];
-			TArray<FString> parsed;
-			int count = str.ParseIntoArray(parsed, TEXT(","), false);
-			if (count > 1)
-				Ax = FCString::Atof(*parsed[0]);
-		}
-
-		ProjectileMovement->InitialSpeed = Ax;
+		ProjectileMovement->InitialSpeed = speed;
 		// set the projectile's velocity to the desired direction
 		ProjectileMovement->Velocity = ShootDirection * ProjectileMovement->InitialSpeed;
 	}

@@ -5,6 +5,8 @@
 #include "projectileMotionProjectile.h"
 #include "Animation/AnimInstance.h"
 #include "GameFramework/InputSettings.h"
+#include "Engine.h"
+#include <string>
 
 DEFINE_LOG_CATEGORY_STATIC(LogFPChar, Warning, All);
 
@@ -27,7 +29,7 @@ AprojectileMotionCharacter::AprojectileMotionCharacter()
 	FirstPersonCameraComponent->bUsePawnControlRotation = true;
 
 	// Default offset from the character location for projectiles to spawn
-	GunOffset = FVector(100.0f, 30.0f, 10.0f);
+	GunOffset = FVector(100.0f, 0.0f, 0.0f);
 
 	// Create a mesh component that will be used when being viewed from a '1st person' view (when controlling this pawn)
 	Mesh1P = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("CharacterMesh1P"));
@@ -75,6 +77,33 @@ void AprojectileMotionCharacter::OnFire()
 	// try and fire a projectile
 	if (ProjectileClass != NULL)
 	{
+		FSocket* Socket = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(NAME_Stream, TEXT("default"), false);
+		FString address = TEXT("127.0.0.1");
+		int32 port = 8080;
+		FIPv4Address ip;
+		FIPv4Address::Parse(address, ip);
+
+		TSharedRef<FInternetAddr> addr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+		addr->SetIp(ip.GetValue());
+		addr->SetPort(port);
+		bool connected = Socket->Connect(*addr);
+
+		//GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Bool value is: %s"), connected ? "T" : "F"));
+		
+		TArray<uint8> ReceivedData;
+		//uint8 data[1000];
+		int32 bytes_read = 0;
+
+		//Socket->Recv(data, sizeof(data), bytes_read);
+		ReceivedData.Init(65507u);
+		int32 Read = 0;
+		Socket->Recv(ReceivedData.GetData(), ReceivedData.Num(), Read);
+		const std::string cstr(reinterpret_cast<const char*>(ReceivedData.GetData()), ReceivedData.Num());
+		double speed = atof(cstr.c_str());
+		Socket->Close();
+		//memcpy(&speed, data, sizeof(double));
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("speed ~> %d"), speed));
+
 		const FRotator SpawnRotation = GetControlRotation();
 		// MuzzleOffset is in camera space, so transform it to world space before offsetting from the character location to find the final muzzle position
 		const FVector SpawnLocation = GetActorLocation() + SpawnRotation.RotateVector(GunOffset);
@@ -88,7 +117,7 @@ void AprojectileMotionCharacter::OnFire()
 			{
 				// find launch direction
 				FVector const LaunchDir = SpawnRotation.Vector();
-				Projectile->InitVelocity(LaunchDir);
+				Projectile->InitVelocity(LaunchDir, speed);
 			}
 		}
 	}

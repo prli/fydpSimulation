@@ -29,7 +29,7 @@ public:
 	FORCEINLINE class UProjectileMovementComponent* GetProjectileMovement() const { return ProjectileMovement; }
 
 	/** inits velocity of the projectile in the shoot direction */
-	void InitVelocity(const FVector& ShootDirection);
+	void InitVelocity(const FVector& ShootDirection, const float speed);
 
 	virtual void Tick(float DeltaSeconds) OVERRIDE;
 };
