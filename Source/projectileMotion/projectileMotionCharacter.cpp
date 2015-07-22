@@ -57,7 +57,7 @@ void AprojectileMotionCharacter::SetupPlayerInputComponent(class UInputComponent
 	//InputComponent->BindTouch(EInputEvent::IE_Pressed, this, &AprojectileMotionCharacter::TouchStarted);
 	if( EnableTouchscreenMovement(InputComponent) == false )
 	{
-		InputComponent->BindAction("Fire", IE_Pressed, this, &AprojectileMotionCharacter::OnFire);
+		//InputComponent->BindAction("Fire", IE_Pressed, this, &AprojectileMotionCharacter::OnFire);
 	}
 	
 	InputComponent->BindAxis("MoveForward", this, &AprojectileMotionCharacter::MoveForward);
@@ -70,40 +70,194 @@ void AprojectileMotionCharacter::SetupPlayerInputComponent(class UInputComponent
 	InputComponent->BindAxis("TurnRate", this, &AprojectileMotionCharacter::TurnAtRate);
 	InputComponent->BindAxis("LookUp", this, &APawn::AddControllerPitchInput);
 	InputComponent->BindAxis("LookUpRate", this, &AprojectileMotionCharacter::LookUpAtRate);
+	
+	if (!ConnectionSocket)
+		StartTCPReceiver("RamaSocketListener", "127.0.0.1", 8081);
 }
 
-void AprojectileMotionCharacter::OnFire()
+bool AprojectileMotionCharacter::StartTCPReceiver(
+	const FString& socketName,
+	const FString& ip, 
+	const int32 port
+){
+	//Rama's CreateTCPConnectionListener
+	TSharedRef<FInternetAddr> addr = CreateTCPConnection();
+	/*ListenerSocket = CreateTCPConnectionListener(socketName, ip, port);*/
+
+	//Not created?
+	if (!ConnectionSocket)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("StartTCPReceiver>> Listen socket could not be created! ~> %s %d"), *ip, port));
+		return false;
+	}
+	bool connected = ConnectionSocket->Connect(*addr);
+	if (!connected)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Could not connect!"));
+		return false;
+	}
+	//can thread this too
+	GetWorldTimerManager().SetTimer(this,
+		&AprojectileMotionCharacter::TCPSocketListener, 0.01, true);
+	//GetWorldTimerManager().SetTimer(this, 
+	//	&AprojectileMotionCharacter::TCPConnectionListener, 0.01, true);	
+	return true;
+}
+
+bool FormatIP4ToNumber(const FString& TheIP, uint8 (&Out)[4])
+{
+	//IP Formatting
+	TheIP.Replace( TEXT(" "), TEXT("") );
+ 
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//						   IP 4 Parts
+ 
+	//String Parts
+	TArray<FString> Parts;
+	TheIP.ParseIntoArray( Parts, TEXT("."), true );
+	if ( Parts.Num() != 4 )
+		return false;
+ 
+	//String to Number Parts
+	for ( int32 i = 0; i < 4; ++i )
+	{
+		Out[i] = FCString::Atoi( *Parts[i] );
+	}
+ 
+	return true;
+}
+
+TSharedRef<FInternetAddr> AprojectileMotionCharacter::CreateTCPConnection()
+{
+	//Create Socket
+	ConnectionSocket = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(NAME_Stream, TEXT("default"), false);
+	FString address = TEXT("127.0.0.1");
+	int32 port = 8081;
+	FIPv4Address ip;
+	FIPv4Address::Parse(address, ip);
+	TSharedRef<FInternetAddr> addr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+	addr->SetIp(ip.GetValue());
+	addr->SetPort(port);
+	return addr;
+}
+
+FSocket* AprojectileMotionCharacter::CreateTCPConnectionListener(const FString& socketName,const FString& ip, const int32 port,const int32 ReceiveBufferSize)
+{
+	uint8 IP4Nums[4];
+	if( ! FormatIP4ToNumber(ip, IP4Nums))
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Invalid IP! Expecting 4 parts separated by ."));
+		return false;
+	}
+ 
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	FIPv4Endpoint Endpoint(FIPv4Address(IP4Nums[0], IP4Nums[1], IP4Nums[2], IP4Nums[3]), port);
+	FSocket* ListenSocket = FTcpSocketBuilder(*socketName)
+		.AsReusable()
+		.BoundToEndpoint(Endpoint)
+		.Listening(8);
+ 
+	//Set Buffer Size
+	int32 NewSize = 0;
+	ListenSocket->SetReceiveBufferSize(ReceiveBufferSize, NewSize);
+ 
+	//Done!
+	return ListenSocket;	
+}
+
+void AprojectileMotionCharacter::TCPConnectionListener()
+{
+	//~~~~~~~~~~~~~
+	if(!ListenerSocket) return;
+	//~~~~~~~~~~~~~
+ 
+	//Remote address
+	TSharedRef<FInternetAddr> RemoteAddress = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
+	bool Pending;
+
+	//GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("port ~> %s"), ListenerSocket->GetPortNo()));
+
+	// handle incoming connections
+	if (ListenerSocket->HasPendingConnection(Pending) && Pending)
+	{
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		//Already have a Connection? destroy previous
+		if(ConnectionSocket)
+		{
+			ConnectionSocket->Close();
+			ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->DestroySocket(ConnectionSocket);
+		}
+		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+		//New Connection receive!
+		ConnectionSocket = ListenerSocket->Accept(*RemoteAddress, TEXT("RamaTCP Received Socket Connection"));
+ 
+		if (ConnectionSocket != NULL)
+		{
+			//Global cache of current Remote Address
+			RemoteAddressForConnection = FIPv4Endpoint(RemoteAddress);
+ 
+			//UE_LOG "Accepted Connection! WOOOHOOOO!!!";
+ 
+			//can thread this too
+			GetWorldTimerManager().SetTimer(this, 
+				&AprojectileMotionCharacter::TCPSocketListener, 0.01, true);	
+		}
+	}
+}
+
+FString StringFromBinaryArray(const TArray<uint8>& BinaryArray)
+{
+	//Create a string from a byte array!
+	std::string cstr( reinterpret_cast<const char*>(BinaryArray.GetData()), BinaryArray.Num() );
+	return FString(cstr.c_str());
+}
+
+void AprojectileMotionCharacter::TCPSocketListener()
+{
+	//~~~~~~~~~~~~~
+	if(!ConnectionSocket) return;
+	//~~~~~~~~~~~~~
+ 
+ 
+	//Binary Array!
+	TArray<uint8> ReceivedData;
+ 
+	uint32 Size;
+	while (ConnectionSocket->HasPendingData(Size))
+	{
+		ReceivedData.Init(FMath::Min(Size, 65507u));
+ 
+		int32 Read = 0;
+		ConnectionSocket->Recv(ReceivedData.GetData(), ReceivedData.Num(), Read);
+ 
+		//GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Data Read! %d"), ReceivedData.Num()));
+	}
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	if(ReceivedData.Num() <= 0)
+	{
+		//No Data Received
+		return;
+	}
+
+	GEngine->AddOnScreenDebugMessage(-1, .5f, FColor::Red, FString::Printf(TEXT("Data Bytes Read ~> %d"), ReceivedData.Num()));
+
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//						Rama's String From Binary Array
+	const FString ReceivedUE4String = StringFromBinaryArray(ReceivedData);
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Red, FString::Printf(TEXT("As String Data ~> %s"), *ReceivedUE4String));
+
+	float speed = FCString::Atof(*ReceivedUE4String);
+	OnFire(speed);
+}
+
+void AprojectileMotionCharacter::OnFire(float speed)
 { 
 	// try and fire a projectile
 	if (ProjectileClass != NULL)
-	{
-		FSocket* Socket = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(NAME_Stream, TEXT("default"), false);
-		FString address = TEXT("127.0.0.1");
-		int32 port = 8080;
-		FIPv4Address ip;
-		FIPv4Address::Parse(address, ip);
-
-		TSharedRef<FInternetAddr> addr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
-		addr->SetIp(ip.GetValue());
-		addr->SetPort(port);
-		bool connected = Socket->Connect(*addr);
-
-		//GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Bool value is: %s"), connected ? "T" : "F"));
-		
-		TArray<uint8> ReceivedData;
-		//uint8 data[1000];
-		int32 bytes_read = 0;
-
-		//Socket->Recv(data, sizeof(data), bytes_read);
-		ReceivedData.Init(65507u);
-		int32 Read = 0;
-		Socket->Recv(ReceivedData.GetData(), ReceivedData.Num(), Read);
-		const std::string cstr(reinterpret_cast<const char*>(ReceivedData.GetData()), ReceivedData.Num());
-		double speed = atof(cstr.c_str());
-		Socket->Close();
-		//memcpy(&speed, data, sizeof(double));
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("speed ~> %d"), speed));
-
+	{		
 		const FRotator SpawnRotation = GetControlRotation();
 		// MuzzleOffset is in camera space, so transform it to world space before offsetting from the character location to find the final muzzle position
 		const FVector SpawnLocation = GetActorLocation() + SpawnRotation.RotateVector(GunOffset);
@@ -161,7 +315,7 @@ void AprojectileMotionCharacter::EndTouch(const ETouchIndex::Type FingerIndex, c
 	}
 	if( ( FingerIndex == TouchItem.FingerIndex ) && (TouchItem.bMoved == false) )
 	{
-		OnFire();
+		OnFire(3000);
 	}
 	TouchItem.bIsPressed = false;
 }

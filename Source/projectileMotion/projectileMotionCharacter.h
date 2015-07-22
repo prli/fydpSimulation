@@ -46,10 +46,33 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Gameplay)
 	class UAnimMontage* FireAnimation;
 
+	FSocket* ListenerSocket;
+	FSocket* ConnectionSocket;
+	FIPv4Endpoint RemoteAddressForConnection;
+ 
+	bool StartTCPReceiver(
+		const FString& socketName,
+		const FString& ip, 
+		const int32 port
+	);
+
+	TSharedRef<FInternetAddr> CreateTCPConnection();
+
+	FSocket* CreateTCPConnectionListener(
+		const FString& socketName,
+		const FString& ip, 
+		const int32 port, 
+		const int32 ReceiveBufferSize = 2*1024*1024
+	);
+	 
+	//Timer functions, could be threads
+	void TCPConnectionListener(); 	//can thread this eventually
+	void TCPSocketListener();		//can thread this eventually
+
 protected:
 	
 	/** Fires a projectile. */
-	void OnFire();
+	void OnFire(float val);
 
 	/** Handles moving forward/backward */
 	void MoveForward(float Val);
