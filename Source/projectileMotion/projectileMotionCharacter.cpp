@@ -131,7 +131,7 @@ TSharedRef<FInternetAddr> AprojectileMotionCharacter::CreateTCPConnection()
 {
 	//Create Socket
 	ConnectionSocket = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateSocket(NAME_Stream, TEXT("default"), false);
-	FString address = TEXT("127.0.0.1");
+	FString address = TEXT("192.168.56.101");
 	int32 port = 8081;
 	FIPv4Address ip;
 	FIPv4Address::Parse(address, ip);
@@ -147,7 +147,7 @@ FSocket* AprojectileMotionCharacter::CreateTCPConnectionListener(const FString& 
 	if( ! FormatIP4ToNumber(ip, IP4Nums))
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Invalid IP! Expecting 4 parts separated by ."));
-		return false;
+		return NULL;
 	}
  
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
